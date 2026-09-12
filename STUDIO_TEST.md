@@ -45,7 +45,7 @@ Before the deadline, call `submit_evidence`:
 
 ```text
 dare_id: <id>
-evidence_url: https://raw.githubusercontent.com/zakazaka95/GenDare/<COMMIT>/DEMO_EVIDENCE.md
+evidence_url: https://raw.githubusercontent.com/zakazaka95/GenDare/288904109daa7cf7db501fa62fc9a943fff90b00/DEMO_EVIDENCE.md
 evidence_text: This immutable release record identifies the public GenDare deployment, source digest, live application, and publication date.
 ```
 
