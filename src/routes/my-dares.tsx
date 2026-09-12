@@ -24,6 +24,8 @@ function MyDares() {
   const [loading, setLoading] = useState(true);
   const [mine, setMine] = useState<Dare[]>([]);
   const [participating, setParticipating] = useState<Dare[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!wallet.address) {
@@ -43,19 +45,21 @@ function MyDares() {
         if (cancelled) return;
         setMine(all.filter(isMine).map(adaptOnchain));
         setParticipating(all.filter(isParticipating).map(adaptOnchain));
+        setLoadError(false);
       } catch (err) {
         console.error(err);
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled && initial) setLoading(false);
       }
     };
     load(true);
-    const id = setInterval(() => load(false), 30_000);
+    const id = setInterval(() => load(false), 60_000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [wallet.address]);
+  }, [wallet.address, retryNonce]);
 
   return (
     <div className="relative min-h-screen">
@@ -80,6 +84,21 @@ function MyDares() {
           </div>
         </motion.div>
 
+        {wallet.address && loadError && (mine.length > 0 || participating.length > 0) && (
+          <div className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-stake/25 bg-amber-stake/[0.05] px-4 py-3 text-[11.5px] text-white/75">
+            <span>
+              Studio Devnet is temporarily unavailable. Showing your last confirmed ledger.
+            </span>
+            <button
+              type="button"
+              onClick={() => setRetryNonce((value) => value + 1)}
+              className="font-semibold text-amber-stake"
+            >
+              Retry read
+            </button>
+          </div>
+        )}
+
         {!wallet.address ? (
           <EmptyState
             title="Connect your wallet."
@@ -87,6 +106,8 @@ function MyDares() {
           />
         ) : loading ? (
           <div className="mt-16 text-[13px] text-muted-foreground">Loading your ledger…</div>
+        ) : loadError && mine.length === 0 && participating.length === 0 ? (
+          <ReadErrorState retry={() => setRetryNonce((value) => value + 1)} />
         ) : mine.length === 0 && participating.length === 0 ? (
           <EmptyState
             title="No dares on your ledger."
@@ -101,6 +122,28 @@ function MyDares() {
       </main>
 
       <Footer />
+    </div>
+  );
+}
+
+function ReadErrorState({ retry }: { retry: () => void }) {
+  return (
+    <div className="mt-16 rounded-2xl border border-amber-stake/25 bg-amber-stake/[0.05] px-8 py-20 text-center">
+      <div className="eyebrow text-amber-stake">Network read interrupted</div>
+      <h3 className="mt-6 text-[28px] font-semibold tracking-tight text-white">
+        Your onchain ledger is temporarily unavailable.
+      </h3>
+      <p className="mx-auto mt-4 max-w-md text-[14px] leading-relaxed text-muted-foreground">
+        Studio Devnet did not return the records. This is not an empty account and no dare has been
+        removed.
+      </p>
+      <button
+        type="button"
+        onClick={retry}
+        className="mt-8 min-h-11 rounded-md bg-lime px-5 text-[11px] font-bold tracking-[0.08em] text-background"
+      >
+        RETRY ONCHAIN READ
+      </button>
     </div>
   );
 }

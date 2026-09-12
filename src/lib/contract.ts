@@ -264,24 +264,129 @@ export type OnchainDare = {
 
 // ─── READ ───────────────────────────────────────────
 
+const READ_RETRY_DELAY_MS = 900;
+
+export class DareNotFoundError extends Error {
+  readonly dareId: number;
+
+  constructor(dareId: number) {
+    super(`Dare ${dareId} does not exist`);
+    this.name = "DareNotFoundError";
+    this.dareId = dareId;
+  }
+}
+
+export class ContractReadUnavailableError extends Error {
+  readonly cause: unknown;
+
+  constructor(message: string, cause: unknown) {
+    super(message);
+    this.name = "ContractReadUnavailableError";
+    this.cause = cause;
+  }
+}
+
+export function isDareNotFoundError(error: unknown): error is DareNotFoundError {
+  return error instanceof DareNotFoundError;
+}
+
+function errorText(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  let depth = 0;
+  while (current && depth < 6) {
+    if (typeof current === "string") {
+      parts.push(current);
+      break;
+    }
+    const record = current as ErrorRecord;
+    const data = record.data as { receipt?: { result?: unknown }; message?: unknown } | undefined;
+    for (const value of [
+      decodeRpcResult(data?.receipt?.result),
+      data?.message,
+      record.message,
+      record.shortMessage,
+      record.details,
+      record.data,
+    ]) {
+      const text = printable(value);
+      if (text) parts.push(text);
+    }
+    current = record.cause;
+    depth += 1;
+  }
+  return parts.join(" ").toLowerCase();
+}
+
+function isExplicitMissingDare(error: unknown): boolean {
+  const text = errorText(error);
+  return text.includes("dare does not exist") || text.includes("dare not found");
+}
+
+async function waitBeforeReadRetry(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, READ_RETRY_DELAY_MS));
+}
+
+/** One bounded retry absorbs a transient RPC miss without creating a request storm. */
+async function readWithRetry<T>(read: () => Promise<T>, stopRetry?: (error: unknown) => boolean) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      lastError = error;
+      if (stopRetry?.(error) || attempt === 1) throw error;
+      await waitBeforeReadRetry();
+    }
+  }
+  throw lastError;
+}
+
+function parseOnchainDare(value: unknown): OnchainDare {
+  const parsed = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Contract returned an invalid dare record");
+  }
+  return parsed as OnchainDare;
+}
+
 export async function getDareCount(): Promise<number> {
   const c = await getReadClient();
-  const result = await c.readContract({
-    address: CONTRACT_ADDRESS,
-    functionName: "get_dare_count",
-    args: [],
-  });
-  return Number(result);
+  try {
+    const result = await readWithRetry(() =>
+      c.readContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "get_dare_count",
+        args: [],
+      }),
+    );
+    return Number(result);
+  } catch (error) {
+    throw new ContractReadUnavailableError("Studio Devnet could not be reached.", error);
+  }
 }
 
 export async function getDare(dareId: number): Promise<OnchainDare> {
+  if (!Number.isSafeInteger(dareId) || dareId < 0) throw new DareNotFoundError(dareId);
   const c = await getReadClient();
-  const result = await c.readContract({
-    address: CONTRACT_ADDRESS,
-    functionName: "get_dare",
-    args: [dareId],
-  });
-  return JSON.parse(String(result)) as OnchainDare;
+  try {
+    const result = await readWithRetry(
+      () =>
+        c.readContract({
+          address: CONTRACT_ADDRESS,
+          functionName: "get_dare",
+          args: [dareId],
+        }),
+      isExplicitMissingDare,
+    );
+    return parseOnchainDare(result);
+  } catch (error) {
+    if (isExplicitMissingDare(error)) throw new DareNotFoundError(dareId);
+    throw new ContractReadUnavailableError(
+      "This dare could not be read from Studio Devnet.",
+      error,
+    );
+  }
 }
 
 export async function getClaimable(dareId: number, account: string): Promise<bigint> {
@@ -295,16 +400,27 @@ export async function getClaimable(dareId: number, account: string): Promise<big
 }
 
 export async function getAllDares(): Promise<OnchainDare[]> {
-  const count = await getDareCount();
-  const dares: OnchainDare[] = [];
-  for (let i = 0; i < count; i++) {
-    try {
-      dares.push(await getDare(i));
-    } catch {
-      // Skip sparse or temporarily unreadable IDs without hiding valid dares.
-    }
+  const c = await getReadClient();
+  try {
+    // The deployed contract returns its latest 20 records in one read. The old
+    // count + N-reads implementation exhausted Studio Devnet's hourly quota and
+    // silently converted transport failures into an empty feed.
+    const result = await readWithRetry(() =>
+      c.readContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "get_recent_dares",
+        args: [20],
+      }),
+    );
+    const values: unknown = typeof result === "string" ? JSON.parse(result) : result;
+    if (!Array.isArray(values)) throw new Error("Contract returned an invalid dare list");
+    return values.map(parseOnchainDare);
+  } catch (error) {
+    throw new ContractReadUnavailableError(
+      "The dare feed could not be read from Studio Devnet.",
+      error,
+    );
   }
-  return dares;
 }
 
 // ─── WRITE ──────────────────────────────────────────

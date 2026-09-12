@@ -6,7 +6,13 @@ import { AmbientBackground } from "@/components/AmbientBackground";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { StatusBadge } from "@/components/StatusBadge";
-import { adaptOnchain, type Dare, coinDisplayName, formatReceipt } from "@/lib/dares";
+import {
+  adaptOnchain,
+  type Dare,
+  coinDisplayName,
+  formatReceipt,
+  parseDareRouteId,
+} from "@/lib/dares";
 import {
   cancelOpenDare,
   claim as claimPayout,
@@ -14,6 +20,7 @@ import {
   forceRefundStalled,
   getDare,
   getClaimable,
+  isDareNotFoundError,
   supportDare,
   challengeDare,
   submitEvidence,
@@ -211,11 +218,14 @@ type Action =
 
 function DareDetail() {
   const { id } = Route.useParams();
+  const routeTarget = parseDareRouteId(id);
+  const chainDareId = routeTarget?.dareId ?? -1;
   const wallet = useWallet();
   const [raw, setRaw] = useState<OnchainDare | null>(null);
   const [dare, setDare] = useState<Dare | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notFoundErr, setNotFoundErr] = useState(false);
+  const [missing, setMissing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState<Action>("idle");
   const [showEvidence, setShowEvidence] = useState(false);
   const [evidenceUrl, setEvidenceUrl] = useState("");
@@ -225,28 +235,55 @@ function DareDetail() {
   const [now, setNow] = useState(() => Date.now());
 
   const load = async () => {
+    setLoading(true);
+    setMissing(false);
+    setLoadError(null);
+    if (!routeTarget) {
+      setRaw(null);
+      setDare(null);
+      setMissing(true);
+      setLoading(false);
+      return;
+    }
     try {
-      const onchain = await getDare(Number(id));
+      const onchain = await getDare(chainDareId);
+      const adapted = adaptOnchain(onchain);
+      if (routeTarget.dareType && routeTarget.dareType !== adapted.dareType) {
+        setRaw(null);
+        setDare(null);
+        setMissing(true);
+        return;
+      }
       let nextClaimable = 0n;
       if (wallet.address && onchain.settlement_mode) {
         try {
-          nextClaimable = await getClaimable(Number(id), wallet.address);
+          nextClaimable = await getClaimable(chainDareId, wallet.address);
         } catch {
           // A read failure must not hide the dare itself. The user can retry on refresh.
         }
       }
       setRaw(onchain);
-      setDare(adaptOnchain(onchain));
+      setDare(adapted);
       setClaimableWei(nextClaimable);
     } catch (err) {
       console.error(err);
-      setNotFoundErr(true);
+      if (isDareNotFoundError(err)) {
+        setRaw(null);
+        setDare(null);
+        setMissing(true);
+      } else {
+        setLoadError(
+          "Studio Devnet is busy or temporarily unavailable. Your dare is still onchain.",
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    setRaw(null);
+    setDare(null);
     setClaimableWei(0n);
     void load();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
@@ -291,7 +328,7 @@ function DareDetail() {
     }
   };
 
-  if (loading) {
+  if (loading && (!dare || !raw)) {
     return (
       <div className="relative min-h-screen">
         <AmbientBackground />
@@ -308,7 +345,42 @@ function DareDetail() {
     );
   }
 
-  if (notFoundErr || !dare || !raw) throw notFound();
+  if (missing) throw notFound();
+
+  if (!dare || !raw) {
+    return (
+      <div className="relative min-h-screen">
+        <AmbientBackground />
+        <Navbar />
+        <main className="relative z-10 mx-auto flex min-h-[75vh] max-w-xl items-center px-5 py-24 text-center sm:px-6">
+          <div className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.02] p-8 sm:p-10">
+            <div className="eyebrow">Network read interrupted</div>
+            <h1 className="mt-5 text-2xl font-semibold text-white">The dare is still onchain.</h1>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {loadError ?? "Studio Devnet did not return the record. Try the read again."}
+            </p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="min-h-11 rounded-md bg-lime px-5 text-[11px] font-bold tracking-[0.08em] text-background disabled:opacity-60"
+              >
+                {loading ? "RETRYING…" : "RETRY READ"}
+              </button>
+              <Link
+                to="/"
+                className="inline-flex min-h-11 items-center rounded-md border border-white/15 px-5 text-[11px] font-bold tracking-[0.08em] text-white"
+              >
+                BACK TO FEED
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const isPrice = dare.dareType === "price";
   const coinName = coinDisplayName(dare.coinId);
@@ -381,6 +453,18 @@ function DareDetail() {
       <Navbar />
 
       <main className="relative z-10 mx-auto max-w-5xl px-5 pb-24 pt-20 sm:px-6 sm:pt-28">
+        {loadError && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-stake/25 bg-amber-stake/[0.06] px-4 py-3 text-[11.5px] text-white/75">
+            <span>{loadError} Showing the last confirmed record.</span>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="font-semibold text-amber-stake"
+            >
+              Retry read
+            </button>
+          </div>
+        )}
         {/* top bar */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px]">
           <Link to="/" className="text-muted-foreground transition-colors hover:text-white">
@@ -521,7 +605,11 @@ function DareDetail() {
                             disabled={pending !== "idle" || !evidenceUrl}
                             onClick={() =>
                               runAction("evidence", () =>
-                                submitEvidence(Number(id), evidenceUrl.trim(), evidenceText.trim()),
+                                submitEvidence(
+                                  chainDareId,
+                                  evidenceUrl.trim(),
+                                  evidenceText.trim(),
+                                ),
                               )
                             }
                             className="rounded-full bg-lime px-4 py-2 text-[11.5px] font-semibold text-background disabled:opacity-60"
@@ -565,9 +653,9 @@ function DareDetail() {
                 isCreator={isCreator}
                 connected={!!connected}
                 myPosition={myPosition}
-                onSupport={() => runAction("support", () => supportDare(Number(id), stakeAmount))}
+                onSupport={() => runAction("support", () => supportDare(chainDareId, stakeAmount))}
                 onChallenge={() =>
-                  runAction("challenge", () => challengeDare(Number(id), stakeAmount))
+                  runAction("challenge", () => challengeDare(chainDareId, stakeAmount))
                 }
               />
             </div>
@@ -652,7 +740,7 @@ function DareDetail() {
               {canResolveGoal && (
                 <button
                   disabled={pending !== "idle"}
-                  onClick={() => runAction("resolve", () => resolveDare(Number(id)))}
+                  onClick={() => runAction("resolve", () => resolveDare(chainDareId))}
                   className="mt-5 rounded-full border border-white/15 px-5 py-2.5 text-[12px] font-semibold text-white hover:border-white/30 disabled:opacity-60"
                 >
                   {pending === "resolve"
@@ -666,7 +754,7 @@ function DareDetail() {
               {canResolvePrice && (
                 <button
                   disabled={pending !== "idle"}
-                  onClick={() => runAction("price-resolve", () => resolvePriceDare(Number(id)))}
+                  onClick={() => runAction("price-resolve", () => resolvePriceDare(chainDareId))}
                   className="mt-5 rounded-full bg-lime px-5 py-2.5 text-[12px] font-semibold text-background hover:bg-lime/90 disabled:opacity-60"
                 >
                   {pending === "price-resolve" ? "Checking…" : "Check price now →"}
@@ -745,7 +833,7 @@ function DareDetail() {
                   {canClaim && (
                     <button
                       disabled={pending !== "idle"}
-                      onClick={() => runAction("claim", () => claimPayout(Number(id)))}
+                      onClick={() => runAction("claim", () => claimPayout(chainDareId))}
                       className="block w-full rounded-full bg-lime px-4 py-3 text-[12px] font-semibold text-background hover:bg-lime/90 disabled:opacity-50"
                     >
                       {pending === "claim"
@@ -757,7 +845,7 @@ function DareDetail() {
                   {canFinalizeAbandoned && (
                     <button
                       disabled={pending !== "idle"}
-                      onClick={() => runAction("abandon", () => claimAbandoned(Number(id)))}
+                      onClick={() => runAction("abandon", () => claimAbandoned(chainDareId))}
                       className="block w-full rounded-full border border-deep-red/40 px-4 py-3 text-[12px] font-semibold text-deep-red hover:border-deep-red disabled:opacity-50"
                     >
                       {pending === "abandon" ? "Finalizing…" : "Finalize missing evidence"}
@@ -767,7 +855,7 @@ function DareDetail() {
                   {canCancel && (
                     <button
                       disabled={pending !== "idle"}
-                      onClick={() => runAction("cancel", () => cancelOpenDare(Number(id)))}
+                      onClick={() => runAction("cancel", () => cancelOpenDare(chainDareId))}
                       className="block w-full rounded-full border border-white/15 px-4 py-3 text-[12px] font-semibold text-white hover:border-white/30 disabled:opacity-50"
                     >
                       {pending === "cancel" ? "Canceling…" : "Cancel unjoined dare and refund"}
@@ -785,7 +873,7 @@ function DareDetail() {
                     <button
                       disabled={pending !== "idle"}
                       onClick={() =>
-                        runAction("force-refund", () => forceRefundStalled(Number(id)))
+                        runAction("force-refund", () => forceRefundStalled(chainDareId))
                       }
                       className="block w-full rounded-full border border-amber-stake/50 px-4 py-3 text-[12px] font-semibold text-amber-stake hover:border-amber-stake disabled:opacity-50"
                     >
@@ -809,9 +897,9 @@ function DareDetail() {
                 isCreator={isCreator}
                 connected={!!connected}
                 myPosition={myPosition}
-                onSupport={() => runAction("support", () => supportDare(Number(id), stakeAmount))}
+                onSupport={() => runAction("support", () => supportDare(chainDareId, stakeAmount))}
                 onChallenge={() =>
-                  runAction("challenge", () => challengeDare(Number(id), stakeAmount))
+                  runAction("challenge", () => challengeDare(chainDareId, stakeAmount))
                 }
               />
             </div>

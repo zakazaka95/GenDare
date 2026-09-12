@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Dare } from "@/lib/dares";
-import { coinDisplayName } from "@/lib/dares";
+import { coinDisplayName, dareRouteId } from "@/lib/dares";
 import { StatusBadge } from "./StatusBadge";
 import { formatCountdown } from "@/lib/countdown";
 import { resolvePriceDare } from "@/lib/contract";
@@ -172,7 +172,7 @@ export function DareCard({
       {dare.pending ? (
         <div className="block h-full opacity-90">{inner}</div>
       ) : (
-        <Link to="/dare/$id" params={{ id: dare.id }} className="block h-full">
+        <Link to="/dare/$id" params={{ id: dareRouteId(dare) }} className="block h-full">
           {inner}
         </Link>
       )}

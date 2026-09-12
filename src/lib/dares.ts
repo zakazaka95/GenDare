@@ -26,6 +26,11 @@ export type DareStatus =
   | "void";
 export type DareCategory = "Price" | "Building" | "Writing" | "Onchain";
 export type DareType = "price" | "goal";
+export type DareRouteTarget = {
+  dareId: number;
+  /** Legacy numeric links have no kind and remain readable. */
+  dareType?: DareType;
+};
 export type DareVerdict = "complete" | "incomplete" | "inconclusive" | "unreadable" | "canceled";
 export type DareReceipt = OnchainReceipt & { raw?: string };
 
@@ -63,6 +68,29 @@ export interface Dare {
   attempts?: number;
   evidenceLockedAt?: number;
   settledAt?: number;
+}
+
+/**
+ * Canonical public URL segment. Price and goal records share one on-chain ID
+ * sequence, but carrying the kind in the URL makes links self-describing and
+ * prevents a card of one kind from silently opening a record of the other.
+ */
+export function dareRouteId(dare: Pick<Dare, "id" | "dareType">): string {
+  return `${dare.dareType}-${dare.id}`;
+}
+
+/** Accept canonical `price-0` / `goal-1` and old numeric `/dare/0` links. */
+export function parseDareRouteId(value: string): DareRouteTarget | null {
+  const canonical = /^(price|goal)-(0|[1-9]\d*)$/.exec(value);
+  const legacy = /^(0|[1-9]\d*)$/.exec(value);
+  const idText = canonical?.[2] ?? legacy?.[1];
+  if (idText === undefined) return null;
+  const dareId = Number(idText);
+  if (!Number.isSafeInteger(dareId)) return null;
+  return {
+    dareId,
+    ...(canonical ? { dareType: canonical[1] as DareType } : {}),
+  };
 }
 
 const VALID_STATUS: DareStatus[] = [

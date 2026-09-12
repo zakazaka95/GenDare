@@ -261,10 +261,34 @@ function FeedSkeleton() {
   );
 }
 
+function FeedReadError({ retry }: { retry: () => void }) {
+  return (
+    <div className="mt-10 border border-amber-stake/25 bg-amber-stake/[0.05] px-6 py-10 text-center sm:px-10">
+      <div className="eyebrow text-amber-stake">Network read interrupted</div>
+      <h3 className="mt-5 text-[24px] font-semibold text-white">
+        The onchain feed is temporarily unavailable.
+      </h3>
+      <p className="mx-auto mt-3 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
+        Studio Devnet did not return the records. No dare has been removed, and an empty response is
+        never presented as an empty feed.
+      </p>
+      <button
+        type="button"
+        onClick={retry}
+        className="mt-7 min-h-11 rounded-md bg-lime px-5 text-[11px] font-bold tracking-[0.08em] text-background"
+      >
+        RETRY ONCHAIN READ
+      </button>
+    </div>
+  );
+}
+
 function Feed() {
   const [cat, setCat] = useState<"All" | DareCategory>("All");
   const [loading, setLoading] = useState(true);
   const [dares, setDares] = useState<Dare[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -273,19 +297,21 @@ function Feed() {
         const onchain = await getAllDares();
         if (cancelled) return;
         setDares(onchain.map(adaptOnchain));
+        setLoadError(false);
       } catch (err) {
         console.error("Failed to load dares", err);
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled && initial) setLoading(false);
       }
     };
     load(true);
-    const id = setInterval(() => load(false), 15_000);
+    const id = setInterval(() => load(false), 60_000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [retryNonce]);
 
   // Feed is built exclusively from accepted on-chain records, deduped strictly
   // by stable on-chain id (dare kind + contract id) — never by fuzzy fields.
@@ -308,6 +334,18 @@ function Feed() {
       id="feed"
       className="relative z-10 mx-auto max-w-6xl scroll-mt-28 px-5 pb-8 pt-16 sm:px-8 sm:pt-20"
     >
+      {loadError && dares.length > 0 && (
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-stake/25 bg-amber-stake/[0.05] px-4 py-3 text-[11.5px] text-white/75">
+          <span>Studio Devnet is temporarily unavailable. Showing the last confirmed feed.</span>
+          <button
+            type="button"
+            onClick={() => setRetryNonce((value) => value + 1)}
+            className="font-semibold text-amber-stake"
+          >
+            Retry read
+          </button>
+        </div>
+      )}
       {/* Featured Price Dares */}
       {priceDares.length > 0 && (
         <div className="mb-24">
@@ -354,6 +392,8 @@ function Feed() {
 
       {loading ? (
         <FeedSkeleton />
+      ) : loadError && dares.length === 0 ? (
+        <FeedReadError retry={() => setRetryNonce((value) => value + 1)} />
       ) : filtered.length === 0 ? (
         <EmptyFeed />
       ) : (
