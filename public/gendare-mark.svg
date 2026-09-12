@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">GenDare</title>
+  <g fill="none" stroke-linecap="round" stroke-width="38">
+    <path d="M111 31A99 99 0 0 0 111 225" stroke="#f7f9ff"/>
+    <path d="M145 31A99 99 0 0 1 221 99" stroke="#4974ff"/>
+    <path d="M221 157A99 99 0 0 1 145 225" stroke="#4974ff"/>
+    <path d="M35 128H82" stroke="#f7f9ff"/>
+    <path d="M174 128H221" stroke="#4974ff"/>
+  </g>
+  <path d="M128 85c-16 0-29 13-29 29v56c0 16 13 29 29 29V85Z" fill="#f7f9ff"/>
+  <path d="M128 85c16 0 29 13 29 29v56c0 16-13 29-29 29V85Z" fill="#4974ff"/>
+</svg>
