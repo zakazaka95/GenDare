@@ -66,6 +66,7 @@ export interface Dare {
   receipt?: DareReceipt;
   settlementMode?: string;
   attempts?: number;
+  lastAttemptAt?: number;
   evidenceLockedAt?: number;
   settledAt?: number;
 }
@@ -193,6 +194,7 @@ export function adaptOnchain(d: OnchainDare): Dare {
     receipt,
     settlementMode: d.settlement_mode,
     attempts: d.attempts,
+    lastAttemptAt: d.last_attempt_at ? d.last_attempt_at * 1_000 : undefined,
     evidenceLockedAt: d.evidence_locked_at ? d.evidence_locked_at * 1_000 : undefined,
     settledAt: d.settled_at ? d.settled_at * 1_000 : undefined,
   };

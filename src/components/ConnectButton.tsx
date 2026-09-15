@@ -2,21 +2,21 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useWallet, shortAddress } from "@/lib/wallet";
 
 export function ConnectButton({ compact = false }: { compact?: boolean }) {
-  const { address, status, isStudioDev, connect, switchToStudioDev } = useWallet();
+  const { address, status, isStudioNext, connect, switchToStudioNext } = useWallet();
 
   const handleClick = () => {
     if (!address) return connect();
-    if (!isStudioDev) return switchToStudioDev();
+    if (!isStudioNext) return switchToStudioNext();
   };
 
   let label = "Connect";
   if (status === "connecting") label = "Connecting…";
   else if (status === "switching") label = "Switching network…";
-  else if (address && !isStudioDev) label = "Wrong network";
+  else if (address && !isStudioNext) label = "Wrong network";
   else if (address) label = shortAddress(address);
 
-  const isLive = !!address && isStudioDev;
-  const isWarn = !!address && !isStudioDev;
+  const isLive = !!address && isStudioNext;
+  const isWarn = !!address && !isStudioNext;
 
   return (
     <button
@@ -84,8 +84,8 @@ export function InstallWalletModal() {
                 Install Rabby or MetaMask.
               </h2>
               <p className="mt-4 text-[13.5px] leading-relaxed text-muted-foreground">
-                GenDare runs on the GenLayer Studio Devnet. You need an injected EVM wallet to
-                stake, support, or challenge a dare.
+                GenDare runs on GenLayer Studio Next. You need an injected EVM wallet to stake,
+                support, or challenge a dare.
               </p>
 
               <div className="mt-8 space-y-2.5">

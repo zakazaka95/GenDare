@@ -3,13 +3,13 @@ import { toast } from "sonner";
 import { getClient } from "./contract";
 import {
   getInjectedProvider,
-  STUDIO_DEV_CHAIN,
-  STUDIO_DEV_CHAIN_ID_HEX,
-  switchOrAddStudioDev,
+  STUDIO_NEXT_CHAIN_ID_HEX,
+  STUDIO_NEXT_WALLET_CHAIN,
+  switchOrAddStudioNext,
   type Eip1193Provider,
 } from "./injected";
 
-export { getInjectedProvider, STUDIO_DEV_CHAIN, STUDIO_DEV_CHAIN_ID_HEX };
+export { getInjectedProvider, STUDIO_NEXT_CHAIN_ID_HEX, STUDIO_NEXT_WALLET_CHAIN };
 export type { Eip1193Provider };
 
 export type WalletStatus = "idle" | "connecting" | "switching" | "connected";
@@ -18,12 +18,12 @@ interface WalletState {
   address: string | null;
   chainId: string | null;
   status: WalletStatus;
-  isStudioDev: boolean;
+  isStudioNext: boolean;
   hasWallet: boolean;
   showInstallModal: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
-  switchToStudioDev: () => Promise<boolean>;
+  switchToStudioNext: () => Promise<boolean>;
   dismissInstallModal: () => void;
 }
 
@@ -34,9 +34,9 @@ export function shortAddress(addr: string | null) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-async function requestStudioDev(provider: Eip1193Provider): Promise<boolean> {
+async function requestStudioNext(provider: Eip1193Provider): Promise<boolean> {
   try {
-    await switchOrAddStudioDev(provider);
+    await switchOrAddStudioNext(provider);
     return true;
   } catch (err: unknown) {
     const code = (err as { code?: number })?.code;
@@ -108,11 +108,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const switchToStudioDev = useCallback(async (): Promise<boolean> => {
+  const switchToStudioNext = useCallback(async (): Promise<boolean> => {
     const provider = getInjectedProvider();
     if (!provider) return false;
     setStatus("switching");
-    const ok = await requestStudioDev(provider);
+    const ok = await requestStudioNext(provider);
     if (ok) {
       try {
         const cid = (await provider.request({ method: "eth_chainId" })) as string;
@@ -151,9 +151,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const lower = cid?.toLowerCase() ?? null;
       setChainId(lower);
 
-      if (lower !== STUDIO_DEV_CHAIN_ID_HEX) {
+      if (lower !== STUDIO_NEXT_CHAIN_ID_HEX) {
         setStatus("switching");
-        const ok = await requestStudioDev(provider);
+        const ok = await requestStudioNext(provider);
         if (ok) {
           const cid2 = (await provider.request({ method: "eth_chainId" })) as string;
           setChainId(cid2?.toLowerCase() ?? null);
@@ -185,15 +185,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       address,
       chainId,
       status,
-      isStudioDev: chainId === STUDIO_DEV_CHAIN_ID_HEX,
+      isStudioNext: chainId === STUDIO_NEXT_CHAIN_ID_HEX,
       hasWallet,
       showInstallModal,
       connect,
       disconnect,
-      switchToStudioDev,
+      switchToStudioNext,
       dismissInstallModal: () => setShowInstallModal(false),
     }),
-    [address, chainId, status, hasWallet, showInstallModal, connect, disconnect, switchToStudioDev],
+    [
+      address,
+      chainId,
+      status,
+      hasWallet,
+      showInstallModal,
+      connect,
+      disconnect,
+      switchToStudioNext,
+    ],
   );
 
   return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;

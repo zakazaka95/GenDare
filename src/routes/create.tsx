@@ -19,7 +19,7 @@ import {
   getTransactionErrorMessage,
   usdToMicroUsd,
 } from "@/lib/contract";
-import { useWallet, STUDIO_DEV_CHAIN_ID_HEX } from "@/lib/wallet";
+import { useWallet, STUDIO_NEXT_CHAIN_ID_HEX } from "@/lib/wallet";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -105,7 +105,7 @@ function SectionHeading({ num, title }: { num: string; title: string }) {
 function CreateDare() {
   const navigate = useNavigate();
   const wallet = useWallet();
-  const [tab, setTab] = useState<Tab>("price");
+  const [tab, setTab] = useState<Tab>("goal");
   const [submitting, setSubmitting] = useState<"idle" | "wallet" | "signing">("idle");
   const [success, setSuccess] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -132,8 +132,8 @@ function CreateDare() {
 
   const ensureChain = async () => {
     if (!wallet.address) await wallet.connect();
-    if (wallet.chainId && wallet.chainId !== STUDIO_DEV_CHAIN_ID_HEX) {
-      const ok = await wallet.switchToStudioDev();
+    if (wallet.chainId && wallet.chainId !== STUDIO_NEXT_CHAIN_ID_HEX) {
+      const ok = await wallet.switchToStudioNext();
       if (!ok) return false;
     }
     return true;
@@ -453,7 +453,7 @@ function CreateDare() {
       <div className="flex items-center justify-between">
         <span className="eyebrow">Review</span>
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Studio Devnet
+          Studio Next
         </span>
       </div>
 
@@ -467,7 +467,7 @@ function CreateDare() {
           { k: "Stake", v: `${stake} GEN` },
           { k: "Deadline", v: deadlineLabel ?? "—" },
           { k: "Visibility", v: isPublic ? "Public" : "Unlisted" },
-          { k: "Network", v: "Studio Devnet" },
+          { k: "Network", v: "Studio Next" },
         ].map((row) => (
           <div key={row.k} className="flex items-baseline justify-between gap-4">
             <dt className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -793,7 +793,7 @@ function CreateDare() {
               <div className="eyebrow">Live onchain</div>
               <h3 className="headline mt-5 text-[32px]">Your reputation is staked.</h3>
               <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-                The dare is live on Studio Devnet.
+                The dare is live on Studio Next.
               </p>
               {txHash && (
                 <a

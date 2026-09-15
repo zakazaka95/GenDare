@@ -1,23 +1,24 @@
-# GenDare V2 Studio Devnet test guide
+# GenDare V2 Studio Next test guide
 
 This repository tracks the GenVM v0.3 source deployed at:
 
-- Contract: `0x5eA37668c8c8F1313d4294C349a7eC8585071135`
-- Network: GenLayer Studio Devnet
+- Contract: `0x86aC73EaDe7563B2c67a9bfD06E6D59AE0CA3980`
+- Network: GenLayer Studio Next
 - Chain ID: `61997` (`0xf22d`)
-- RPC: `https://studio-dev.genlayer.com/api`
-- Explorer: `https://explorer-studio-dev.genlayer.com/address/0x5eA37668c8c8F1313d4294C349a7eC8585071135`
+- RPC: `https://studio-next.genlayer.com/api`
+- Explorer: `https://explorer-studio-dev.genlayer.com/address/0x86aC73EaDe7563B2c67a9bfD06E6D59AE0CA3980`
 
-Use the exact tracked file [`contracts/GenDareV2.py`](contracts/GenDareV2.py). In Studio, select **Studio Devnet**, connect a funded test wallet, and import the deployed address above. Use the built-in faucet if the wallet needs test GEN.
+Use the exact tracked file [`contracts/GenDareV2.py`](contracts/GenDareV2.py). In Studio Next, connect a funded test wallet and import the deployed address above. Use the built-in faucet if the wallet needs test GEN.
 
 ## 1. Verify the deployed contract
 
 Call `get_stats`. The changing counters depend on live use, but these configuration fields must match:
 
-- `contract_version`: `2.1.2`
+- `contract_version`: `2.2.0`
 - `minimum_stake_wei`: `5000000000000000000`
 - `minimum_price_duration_seconds`: `600`
 - `stalled_refund_delay_seconds`: `86400`
+- `retry_cooldown_seconds`: `1800`
 - `max_participants_per_side`: `32`
 - `receipt_schema`: `gendare-receipt-v2`
 
@@ -30,7 +31,7 @@ Choose a deadline at least five minutes in the future and convert it to a Unix t
 ```text
 goal: Publish a reproducible GenDare V2 source snapshot
 claimant_identity: https://github.com/zakazaka95
-completion_criteria: Before the deadline, the public repository contains GenDareV2.py declaring CONTRACT_VERSION 2.1.2 and an immutable commit URL proves the exact source.
+completion_criteria: Before the deadline, the public repository contains GenDareV2.py declaring CONTRACT_VERSION 2.2.0 and an immutable commit URL proves the exact source.
 deadline: <FUTURE_UNIX_TIMESTAMP>
 evidence_hint: https://github.com/zakazaka95/GenDare
 category: Building
@@ -68,7 +69,7 @@ Call `get_claimable(<id>, <CREATOR_WALLET>)`. Then call `claim(<id>)` from the c
 
 ## Optional contested settlement
 
-Before the deadline, use a second wallet to call `challenge_dare(<id>)` with at least 5 GEN. Resolve after the deadline. For a conclusive receipt, only the winning side is claimable and the contract applies its 2% protocol fee. Creator self-staking and joining both sides from one wallet are rejected.
+Before the deadline, use a second wallet to call `challenge_dare(<id>)` with at least 5 GEN. Resolve after the deadline. For a conclusive receipt, only the winning side is claimable and the contract applies its 2% protocol fee to the losing pool. Creator self-staking and joining both sides from one wallet are rejected.
 
 ## Price-dare smoke test
 

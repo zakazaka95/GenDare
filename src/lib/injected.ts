@@ -1,5 +1,7 @@
 // EIP-1193 injected provider discovery (Rabby / MetaMask). Browser-only.
 
+import { STUDIO_NEXT_CHAIN_ID_HEX, STUDIO_NEXT_WALLET_CHAIN } from "./network";
+
 export type Eip1193Provider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>;
   on?: (event: string, handler: (...args: unknown[]) => void) => void;
@@ -9,15 +11,7 @@ export type Eip1193Provider = {
   providers?: Eip1193Provider[];
 };
 
-export const STUDIO_DEV_CHAIN = {
-  chainId: "0xf22d", // 61997
-  chainName: "GenLayer Studio Devnet",
-  nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-  rpcUrls: ["https://studio-dev.genlayer.com/api"],
-  blockExplorerUrls: ["https://explorer-studio-dev.genlayer.com"],
-} as const;
-
-export const STUDIO_DEV_CHAIN_ID_HEX = STUDIO_DEV_CHAIN.chainId.toLowerCase();
+export { STUDIO_NEXT_CHAIN_ID_HEX, STUDIO_NEXT_WALLET_CHAIN };
 
 declare global {
   interface Window {
@@ -45,19 +39,19 @@ export function getInjectedProvider(): Eip1193Provider | null {
   return eth;
 }
 
-/** Switch the selected injected provider to Studio Devnet, adding it when absent. */
-export async function switchOrAddStudioDev(provider: Eip1193Provider): Promise<void> {
+/** Switch the selected injected provider to Studio Next, adding it when absent. */
+export async function switchOrAddStudioNext(provider: Eip1193Provider): Promise<void> {
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: STUDIO_DEV_CHAIN.chainId }],
+      params: [{ chainId: STUDIO_NEXT_CHAIN_ID_HEX }],
     });
   } catch (err: unknown) {
     const code = (err as { code?: number })?.code;
     if (code !== 4902 && code !== -32603) throw err;
     await provider.request({
       method: "wallet_addEthereumChain",
-      params: [STUDIO_DEV_CHAIN],
+      params: [STUDIO_NEXT_WALLET_CHAIN],
     });
   }
 }

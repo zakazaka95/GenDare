@@ -1,17 +1,19 @@
-import { createClient, isSuccessful } from "genlayer-js";
-import { studioDevnet } from "genlayer-js/chains";
+import { createTransactionKit, type TrackedStatus } from "@genlayer/transaction-kit";
+import { createClient } from "genlayer-js";
 import type { CalldataEncodable } from "genlayer-js/types";
 import { isAddress, parseUnits } from "viem";
 import type { Account } from "viem";
 import {
   getInjectedProvider,
-  STUDIO_DEV_CHAIN_ID_HEX,
-  switchOrAddStudioDev,
+  STUDIO_NEXT_CHAIN_ID_HEX,
+  switchOrAddStudioNext,
   type Eip1193Provider,
 } from "./injected";
+import { STUDIO_NEXT_CHAIN } from "./network";
 import { trackTx, updateTx } from "./tx-tracker";
 
-export const CONTRACT_ADDRESS = "0x5eA37668c8c8F1313d4294C349a7eC8585071135" as `0x${string}`;
+export const CONTRACT_ADDRESS = "0x86aC73EaDe7563B2c67a9bfD06E6D59AE0CA3980" as `0x${string}`;
+export const RETRY_COOLDOWN_SECONDS = 30 * 60;
 
 if (!isAddress(CONTRACT_ADDRESS)) {
   throw new Error(`Invalid contract address configured: ${CONTRACT_ADDRESS}`);
@@ -23,7 +25,7 @@ let clientProvider: Eip1193Provider | null = null;
 
 // Read-only client — no wallet needed
 const readClient = createClient({
-  chain: studioDevnet,
+  chain: STUDIO_NEXT_CHAIN,
 });
 
 async function getReadClient() {
@@ -38,7 +40,7 @@ async function getReadClient() {
 export function getClient(walletAddress: string) {
   const provider = getInjectedProvider();
   client = createClient({
-    chain: studioDevnet,
+    chain: STUDIO_NEXT_CHAIN,
     account: walletAddress as `0x${string}`,
     ...(provider ? { provider: provider as never } : {}),
   });
@@ -119,12 +121,12 @@ function debugTransactionError(error: unknown, request: unknown) {
   });
 }
 
-async function ensureStudioDevChain(provider: Eip1193Provider) {
+async function ensureStudioNextChain(provider: Eip1193Provider) {
   const current = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
-  if (current !== STUDIO_DEV_CHAIN_ID_HEX) await switchOrAddStudioDev(provider);
+  if (current !== STUDIO_NEXT_CHAIN_ID_HEX) await switchOrAddStudioNext(provider);
   const confirmed = String(await provider.request({ method: "eth_chainId" })).toLowerCase();
-  if (confirmed !== STUDIO_DEV_CHAIN_ID_HEX) {
-    throw new Error(`Wallet must be connected to Studio Devnet (${STUDIO_DEV_CHAIN_ID_HEX})`);
+  if (confirmed !== STUDIO_NEXT_CHAIN_ID_HEX) {
+    throw new Error(`Wallet must be connected to Studio Next (${STUDIO_NEXT_CHAIN_ID_HEX})`);
   }
 }
 
@@ -155,7 +157,7 @@ async function sendWrite(
   const { c, account, provider } = ensureClient();
 
   // Re-check the same injected provider immediately before estimating and signing.
-  await ensureStudioDevChain(provider);
+  await ensureStudioNextChain(provider);
 
   // genlayer-js resolves the sender via account?.address — a bare hex string
   // yields undefined and viem throws 'Address "undefined" is invalid'. Pass an
@@ -205,12 +207,40 @@ async function sendWrite(
   trackTx(hash, label);
 
   try {
-    const decided = await c.waitForDecision({ hash: hash as never, interval: 5_000, retries: 120 });
-    if (isSuccessful(decided)) {
+    // RC2 normalizes consensus phase and execution result. A transaction is a
+    // success only when GenLayer reports a successful execution, never merely
+    // because consensus accepted or finalized it.
+    const kit = createTransactionKit({
+      chain: STUDIO_NEXT_CHAIN,
+      provider: provider as never,
+      account,
+    });
+    const decided = await kit.track(
+      hash,
+      (status: TrackedStatus) => {
+        if (status.successful !== undefined) return;
+        const detail = [status.statusName, status.executionResultName].filter(Boolean).join(" / ");
+        if (detail) updateTx(hash, "pending", detail);
+      },
+      { until: "decided" },
+    );
+    if (decided.successful === true) {
       updateTx(hash, "success");
       return { hash, success: true };
     }
-    const detail = String((decided as { status?: unknown })?.status ?? "not successful");
+    const detail =
+      [decided.statusName, decided.executionResultName].filter(Boolean).join(" / ") ||
+      "Consensus decided without a successful contract execution";
+    const recoverableDecision = ["UNDETERMINED", "LEADER_TIMEOUT", "VALIDATORS_TIMEOUT"].includes(
+      decided.statusName ?? "",
+    );
+    if (recoverableDecision) {
+      // These decisions can be appealed/reactivated under GenLayer consensus.
+      // Preserve the original hash as uncertain so users do not submit a
+      // duplicate transaction while the same lifecycle may still recover.
+      updateTx(hash, "uncertain", detail);
+      return { hash, success: false, detail };
+    }
     updateTx(hash, "failed", detail);
     return { hash, success: false, detail };
   } catch (err) {
@@ -245,17 +275,18 @@ export type OnchainDare = {
   evidence_text?: string;
   challengers: { address: string; stake: number | string }[];
   supporters: { address: string; stake: number | string }[];
-  // v2.1.2 goal-dare fields
+  // v2.2.0 goal-dare fields
   claimant_identity?: string;
   completion_criteria?: string;
   evidence_hint?: string;
-  // v2.1.2 settlement fields
+  // v2.2.0 settlement fields
   receipt?: OnchainReceipt | string | null;
   settlement_mode?: string;
   attempts?: number;
+  last_attempt_at?: number;
   evidence_locked_at?: number;
   settled_at?: number;
-  // price dare (v2.1.2)
+  // price dare (v2.2.0)
   dare_type?: string;
   coin_id?: string;
   target_price_microusd?: string | number;
@@ -362,7 +393,7 @@ export async function getDareCount(): Promise<number> {
     );
     return Number(result);
   } catch (error) {
-    throw new ContractReadUnavailableError("Studio Devnet could not be reached.", error);
+    throw new ContractReadUnavailableError("Studio Next could not be reached.", error);
   }
 }
 
@@ -382,10 +413,7 @@ export async function getDare(dareId: number): Promise<OnchainDare> {
     return parseOnchainDare(result);
   } catch (error) {
     if (isExplicitMissingDare(error)) throw new DareNotFoundError(dareId);
-    throw new ContractReadUnavailableError(
-      "This dare could not be read from Studio Devnet.",
-      error,
-    );
+    throw new ContractReadUnavailableError("This dare could not be read from Studio Next.", error);
   }
 }
 
@@ -403,7 +431,7 @@ export async function getAllDares(): Promise<OnchainDare[]> {
   const c = await getReadClient();
   try {
     // The deployed contract returns its latest 20 records in one read. The old
-    // count + N-reads implementation exhausted Studio Devnet's hourly quota and
+    // count + N-reads implementation exhausted Studio Next's hourly quota and
     // silently converted transport failures into an empty feed.
     const result = await readWithRetry(() =>
       c.readContract({
@@ -417,7 +445,7 @@ export async function getAllDares(): Promise<OnchainDare[]> {
     return values.map(parseOnchainDare);
   } catch (error) {
     throw new ContractReadUnavailableError(
-      "The dare feed could not be read from Studio Devnet.",
+      "The dare feed could not be read from Studio Next.",
       error,
     );
   }
@@ -460,7 +488,7 @@ export function microUsdToUsd(micro: string | number | bigint | undefined): numb
 }
 
 /**
- * v2.1.2: create_dare(goal, claimant_identity, completion_criteria, deadline,
+ * v2.2.0: create_dare(goal, claimant_identity, completion_criteria, deadline,
  *                     evidence_hint, category, is_public) payable
  */
 export async function createDare(
@@ -521,7 +549,7 @@ export async function claim(dareId: number) {
 }
 
 /**
- * v2.1.2: create_price_dare(coin_id, target_price_microusd, condition,
+ * v2.2.0: create_price_dare(coin_id, target_price_microusd, condition,
  *                           deadline, is_public) payable
  */
 export async function createPriceDare(

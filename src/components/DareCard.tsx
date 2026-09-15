@@ -6,8 +6,8 @@ import type { Dare } from "@/lib/dares";
 import { coinDisplayName, dareRouteId } from "@/lib/dares";
 import { StatusBadge } from "./StatusBadge";
 import { formatCountdown } from "@/lib/countdown";
-import { resolvePriceDare } from "@/lib/contract";
-import { useWallet, STUDIO_DEV_CHAIN_ID_HEX } from "@/lib/wallet";
+import { resolvePriceDare, RETRY_COOLDOWN_SECONDS } from "@/lib/contract";
+import { useWallet, STUDIO_NEXT_CHAIN_ID_HEX } from "@/lib/wallet";
 
 export function DareCard({
   dare,
@@ -32,10 +32,15 @@ export function DareCard({
   const deadlinePassed = dare.deadline * 1000 < Date.now();
   const priceSettlementAt = dare.deadline + 10 * 60;
   const priceSettlementOpen = priceSettlementAt * 1000 <= Date.now();
+  const retryAvailable =
+    dare.status !== "retryable" ||
+    !dare.lastAttemptAt ||
+    dare.lastAttemptAt + RETRY_COOLDOWN_SECONDS * 1000 <= Date.now();
   const canResolve =
     isPrice &&
     ["open", "retryable"].includes(dare.status) &&
     priceSettlementOpen &&
+    retryAvailable &&
     (dare.attempts ?? 0) < 3;
 
   const onResolve = async (e: React.MouseEvent) => {
@@ -44,8 +49,8 @@ export function DareCard({
     try {
       setResolving(true);
       if (!wallet.address) await wallet.connect();
-      if (wallet.chainId && wallet.chainId !== STUDIO_DEV_CHAIN_ID_HEX) {
-        const ok = await wallet.switchToStudioDev();
+      if (wallet.chainId && wallet.chainId !== STUDIO_NEXT_CHAIN_ID_HEX) {
+        const ok = await wallet.switchToStudioNext();
         if (!ok) return;
       }
       const outcome = await resolvePriceDare(Number(dare.id));

@@ -59,7 +59,7 @@ export function Footer() {
         <div className="mt-14 flex flex-col items-start justify-between gap-2 border-t border-white/[0.05] pt-6 text-[11px] text-muted-foreground sm:flex-row">
           <span>© {new Date().getFullYear()} GenDare</span>
           <span className="font-mono">
-            Studio Devnet · {CONTRACT_ADDRESS.slice(0, 6)}…{CONTRACT_ADDRESS.slice(-4)}
+            Studio Next · {CONTRACT_ADDRESS.slice(0, 6)}…{CONTRACT_ADDRESS.slice(-4)}
           </span>
         </div>
       </div>

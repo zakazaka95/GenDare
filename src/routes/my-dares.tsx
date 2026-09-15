@@ -86,9 +86,7 @@ function MyDares() {
 
         {wallet.address && loadError && (mine.length > 0 || participating.length > 0) && (
           <div className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-stake/25 bg-amber-stake/[0.05] px-4 py-3 text-[11.5px] text-white/75">
-            <span>
-              Studio Devnet is temporarily unavailable. Showing your last confirmed ledger.
-            </span>
+            <span>Studio Next is temporarily unavailable. Showing your last confirmed ledger.</span>
             <button
               type="button"
               onClick={() => setRetryNonce((value) => value + 1)}
@@ -134,7 +132,7 @@ function ReadErrorState({ retry }: { retry: () => void }) {
         Your onchain ledger is temporarily unavailable.
       </h3>
       <p className="mx-auto mt-4 max-w-md text-[14px] leading-relaxed text-muted-foreground">
-        Studio Devnet did not return the records. This is not an empty account and no dare has been
+        Studio Next did not return the records. This is not an empty account and no dare has been
         removed.
       </p>
       <button

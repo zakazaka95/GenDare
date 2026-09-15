@@ -26,10 +26,11 @@ import {
   submitEvidence,
   resolveDare,
   resolvePriceDare,
+  RETRY_COOLDOWN_SECONDS,
   weiToGen,
   type OnchainDare,
 } from "@/lib/contract";
-import { useWallet, STUDIO_DEV_CHAIN_ID_HEX, shortAddress } from "@/lib/wallet";
+import { useWallet, STUDIO_NEXT_CHAIN_ID_HEX, shortAddress } from "@/lib/wallet";
 import { useCountdown } from "@/lib/countdown";
 
 export const Route = createFileRoute("/dare/$id")({
@@ -40,13 +41,13 @@ export const Route = createFileRoute("/dare/$id")({
       {
         name: "description",
         content:
-          "Onchain dare detail: stake positions, evidence and validator settlement on GenLayer Studio Devnet.",
+          "Onchain dare detail: stake positions, evidence and validator settlement on GenLayer Studio Next.",
       },
       { property: "og:title", content: "Dare settlement — GenDare" },
       {
         property: "og:description",
         content:
-          "Onchain dare detail: stake positions, evidence and validator settlement on GenLayer Studio Devnet.",
+          "Onchain dare detail: stake positions, evidence and validator settlement on GenLayer Studio Next.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -272,9 +273,7 @@ function DareDetail() {
         setDare(null);
         setMissing(true);
       } else {
-        setLoadError(
-          "Studio Devnet is busy or temporarily unavailable. Your dare is still onchain.",
-        );
+        setLoadError("Studio Next is busy or temporarily unavailable. Your dare is still onchain.");
       }
     } finally {
       setLoading(false);
@@ -296,8 +295,8 @@ function DareDetail() {
 
   const ensureChain = async () => {
     if (!wallet.address) await wallet.connect();
-    if (wallet.chainId && wallet.chainId !== STUDIO_DEV_CHAIN_ID_HEX) {
-      const ok = await wallet.switchToStudioDev();
+    if (wallet.chainId && wallet.chainId !== STUDIO_NEXT_CHAIN_ID_HEX) {
+      const ok = await wallet.switchToStudioNext();
       if (!ok) return false;
     }
     return true;
@@ -357,7 +356,7 @@ function DareDetail() {
             <div className="eyebrow">Network read interrupted</div>
             <h1 className="mt-5 text-2xl font-semibold text-white">The dare is still onchain.</h1>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {loadError ?? "Studio Devnet did not return the record. Try the read again."}
+              {loadError ?? "Studio Next did not return the record. Try the read again."}
             </p>
             <div className="mt-7 flex flex-wrap justify-center gap-3">
               <button
@@ -398,6 +397,10 @@ function DareDetail() {
   const priceSettlementAt = dare.deadline + 10 * 60;
   const priceSettlementOpen = now >= priceSettlementAt * 1_000;
   const attemptsRemaining = (dare.attempts ?? 0) < 3;
+  const retryAvailableAt = dare.lastAttemptAt
+    ? dare.lastAttemptAt + RETRY_COOLDOWN_SECONDS * 1_000
+    : 0;
+  const retryCooldownOpen = dare.status !== "retryable" || now >= retryAvailableAt;
 
   const mySupport = raw.supporters.find((p) => p.address?.toLowerCase() === connected);
   const myChallenge = raw.challengers.find((p) => p.address?.toLowerCase() === connected);
@@ -417,12 +420,14 @@ function DareDetail() {
     !isPrice &&
     ["submitted", "retryable"].includes(dare.status) &&
     deadlinePassed &&
-    attemptsRemaining;
+    attemptsRemaining &&
+    retryCooldownOpen;
   const canResolvePrice =
     isPrice &&
     ["open", "retryable"].includes(dare.status) &&
     priceSettlementOpen &&
-    attemptsRemaining;
+    attemptsRemaining &&
+    retryCooldownOpen;
   const canFinalizeAbandoned = !isPrice && isOpen && deadlinePassed;
   const canCancel = isCreator && isOpen && dare.supporters === 0 && dare.challengers === 0;
   const stalledRefundAt = isPrice ? priceSettlementAt + 24 * 60 * 60 : dare.deadline + 24 * 60 * 60;
@@ -440,7 +445,7 @@ function DareDetail() {
       : dare.status === "canceled"
         ? "This unjoined dare was canceled. The creator can reclaim the locked stake."
         : dare.status === "retryable"
-          ? "The latest validator result was inconclusive or unreadable. Another resolution attempt is available."
+          ? "The latest validator result was inconclusive or unreadable. Another resolution attempt opens after the recovery cooldown."
           : isPrice && isOpen
             ? "Settlement opens 10 minutes after the deadline. GenLayer validators evaluate the locked CoinGecko time window."
             : !isPrice && isOpen
@@ -734,6 +739,13 @@ function DareDetail() {
               {!isPrice && ["submitted", "retryable"].includes(dare.status) && !deadlinePassed && (
                 <div className="mt-5 text-[12.5px] text-muted-foreground">
                   Evidence is locked. Goal consensus opens after the deadline.
+                </div>
+              )}
+
+              {dare.status === "retryable" && !retryCooldownOpen && (
+                <div className="mt-5 text-[12.5px] text-muted-foreground">
+                  The recovery cooldown prevents rapid refund retries. Consensus can be retried in{" "}
+                  <InlineCountdown deadline={Math.ceil(retryAvailableAt / 1_000)} />
                 </div>
               )}
 

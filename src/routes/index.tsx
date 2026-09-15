@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Public accountability settled by independent GenLayer validators. Stake test GEN on verifiable price calls and public goals.",
+          "Public accountability for agent deliverables, builder goals, and price calls, settled by independent GenLayer validators.",
       },
       { property: "og:title", content: "GenDare — Stake Your Reputation" },
       {
@@ -49,7 +49,7 @@ function Hero() {
             className="inline-flex items-center gap-2.5 font-mono text-[10px] font-medium tracking-[0.2em] text-muted-foreground"
           >
             <span className="status-breathe h-1.5 w-1.5 rounded-full bg-lime" />
-            LIVE ON STUDIO DEVNET
+            LIVE ON STUDIO NEXT
           </motion.div>
 
           <motion.h1
@@ -69,8 +69,8 @@ function Hero() {
             transition={{ duration: 0.9, delay: 0.3 }}
             className="mt-7 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
           >
-            Create a public commitment, lock GEN behind it, and let independent GenLayer validators
-            settle the evidence.
+            Stake on whether an agent shipped the promised artifact, a builder hit a public goal, or
+            a market crossed a target. Independent GenLayer validators settle the evidence.
           </motion.p>
 
           <motion.div
@@ -140,12 +140,12 @@ function Hero() {
               ))}
             </div>
             <a
-              href="https://explorer-studio-dev.genlayer.com/address/0x5eA37668c8c8F1313d4294C349a7eC8585071135"
+              href="https://explorer-studio-dev.genlayer.com/address/0x86aC73EaDe7563B2c67a9bfD06E6D59AE0CA3980"
               target="_blank"
               rel="noreferrer"
               className="flex min-h-11 items-center justify-between border-t border-white/10 pt-5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime"
             >
-              <span className="font-mono text-[9px] tracking-[0.14em]">STUDIO DEVNET</span>
+              <span className="font-mono text-[9px] tracking-[0.14em]">STUDIO NEXT</span>
               <span className="flex items-center gap-2 font-mono text-[10px]">
                 0x5eA3…1135 <ExternalLink size={13} />
               </span>
@@ -269,7 +269,7 @@ function FeedReadError({ retry }: { retry: () => void }) {
         The onchain feed is temporarily unavailable.
       </h3>
       <p className="mx-auto mt-3 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
-        Studio Devnet did not return the records. No dare has been removed, and an empty response is
+        Studio Next did not return the records. No dare has been removed, and an empty response is
         never presented as an empty feed.
       </p>
       <button
@@ -336,7 +336,7 @@ function Feed() {
     >
       {loadError && dares.length > 0 && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-stake/25 bg-amber-stake/[0.05] px-4 py-3 text-[11.5px] text-white/75">
-          <span>Studio Devnet is temporarily unavailable. Showing the last confirmed feed.</span>
+          <span>Studio Next is temporarily unavailable. Showing the last confirmed feed.</span>
           <button
             type="button"
             onClick={() => setRetryNonce((value) => value + 1)}
