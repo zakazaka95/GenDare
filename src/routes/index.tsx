@@ -147,7 +147,7 @@ function Hero() {
             >
               <span className="font-mono text-[9px] tracking-[0.14em]">STUDIO NEXT</span>
               <span className="flex items-center gap-2 font-mono text-[10px]">
-                0x5eA3…1135 <ExternalLink size={13} />
+                0x86aC…3980 <ExternalLink size={13} />
               </span>
             </a>
           </div>
